@@ -1,0 +1,11 @@
+[profile.dev]
+opt-level = 1
+codegen-units = 5
+
+[profile.release]
+panic = "abort"
+lto = true
+codegen-units = 1
+
+[workspace]
+members = ["event-derive", "event-type", "event-store"]
