@@ -7,8 +7,8 @@ use syn::{Lit, DeriveInput, Meta, MetaNameValue, Data};
 #[proc_macro_derive(EventType, attributes(stream, event))]
 pub fn event_type_derive(input: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(input).unwrap();
-    let _enum_data = match &ast.data {
-        Data::Enum(enum_data) => enum_data,
+    match &ast.data {
+        Data::Enum(..) => (),
         _ => panic!("unsupported, use enum for events")
     };
     let event = &ast.ident;
@@ -22,7 +22,7 @@ pub fn event_type_derive(input: TokenStream) -> TokenStream {
                     } else {
                         None
                     }
-                },
+                }
                 _ => None,
             }
         })
