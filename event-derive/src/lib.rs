@@ -2,11 +2,15 @@ extern crate proc_macro;
 
 use quote::quote;
 use crate::proc_macro::TokenStream;
-use syn::{Lit, DeriveInput, Meta, MetaNameValue};
+use syn::{Lit, DeriveInput, Meta, MetaNameValue, Data};
 
-#[proc_macro_derive(EventType, attributes(stream))]
+#[proc_macro_derive(EventType, attributes(stream, event))]
 pub fn event_type_derive(input: TokenStream) -> TokenStream {
     let ast: DeriveInput = syn::parse(input).unwrap();
+    let _enum_data = match &ast.data {
+        Data::Enum(enum_data) => enum_data,
+        _ => panic!("unsupported, use enum for events")
+    };
     let event = &ast.ident;
     let stream_type = ast.attrs.into_iter()
         .map(|attr| attr.parse_meta().unwrap())
