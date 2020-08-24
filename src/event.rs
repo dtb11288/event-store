@@ -14,7 +14,7 @@ pub trait EventType {
     fn stream_type() -> &'static str;
 }
 
-pub trait Event: EventType {
+pub trait Event: EventType + Serialize + for<'de> Deserialize<'de> {
     type State: State;
     fn apply_to(self, state: Option<Self::State>) -> Self::State;
 }

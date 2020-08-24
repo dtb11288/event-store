@@ -81,7 +81,7 @@ impl Info {
     pub fn new<E: EventType>(user: UserType) -> Self {
         Self {
             id: Id::random(),
-            stream: E::stream_type().to_string(),
+            stream: E::stream_type().to_owned(),
             date: Utc::now(),
             version: 1,
             user,
