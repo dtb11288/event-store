@@ -7,20 +7,21 @@ use crate::UserEvent::{AddUser, RenameUser};
 use event_store::UserType;
 use serde::{Serialize, Deserialize};
 use event_derive::*;
-use redis::{AsyncCommands, RedisError};
-use std::sync::{Mutex, Arc};
+use redis::{AsyncCommands, Client, RedisError};
 use std::collections::HashMap;
+use redis::aio::PubSub;
+use tokio::try_join;
 
 pub struct Bus {
-    client: redis::Client,
-    pubsub: HashMap<&'static str, redis::aio::PubSub>,
+    client: Client,
+    pubsub: HashMap<&'static str, PubSub>,
 }
 
 impl Bus {
     pub async fn new() -> Self {
-        let rd = redis::Client::open("redis://127.0.0.1/").unwrap();
+        let client = Client::open("redis://127.0.0.1/").unwrap();
         Self {
-            client: rd,
+            client,
             pubsub: HashMap::new(),
         }
     }
@@ -30,9 +31,9 @@ impl Bus {
 impl EventBus for Bus {
     type Error = RedisError;
 
-    async fn publish<E: Event + Send + Sync>(&self, event: &EventInfo<E>) -> Result<(), Self::Error> {
+    async fn publish<E: Event + Send + Sync>(&mut self, event: EventInfo<E>) -> Result<(), Self::Error> {
         let mut publish_conn = self.client.get_async_connection().await?;
-        publish_conn.publish(E::stream_type(), serde_json::to_string(event).unwrap())
+        publish_conn.publish(E::stream_type(), serde_json::to_string(&event).unwrap())
             .await
             .map(|_: redis::Value| ())?;
         Ok(())
@@ -42,24 +43,23 @@ impl EventBus for Bus {
         self.pubsub.insert(E::stream_type(), self.client.get_async_connection().await?.into_pubsub());
         let pubsub_conn = self.pubsub.get_mut(E::stream_type()).unwrap();
         pubsub_conn.subscribe(E::stream_type()).await?;
-        let stream = pubsub_conn.on_message()
+        let stream = Box::pin(pubsub_conn.on_message()
             .map(|msg| {
                 let payload: String = msg.get_payload().unwrap();
                 let event: EventInfo<E> = serde_json::from_str(payload.as_str()).unwrap();
                 event
-            })
-            .boxed();
+            }));
         Ok(stream)
     }
 }
 
 #[derive(Debug, Serialize, Clone, State, PartialEq)]
 struct User {
-    pub email: String,
-    pub name: String,
+    email: String,
+    name: String,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
 enum UserEvent {
     AddUser { email: String, name: String },
     RenameUser { new_name: String },
@@ -75,11 +75,11 @@ impl Event for UserEvent {
     type State = User;
     fn apply_to(self, state: Option<Self::State>) -> Self::State {
         match self {
-            UserEvent::AddUser { name, email } => User {
+            AddUser { name, email } => User {
                 email: email.clone(),
                 name: name.clone(),
             },
-            UserEvent::RenameUser { new_name } => {
+            RenameUser { new_name } => {
                 let mut user = state.unwrap().clone();
                 user.name = new_name.clone();
                 user
@@ -117,35 +117,29 @@ async fn test_bus() {
         .unwrap()
         .clone();
 
-    let bus = Arc::new(Mutex::new(Bus::new().await));
-    {
-        let bus = bus.clone();
-        std::thread::spawn(move || {
-            futures::executor::block_on(async {
-                std::thread::sleep(std::time::Duration::from_secs(5));
-                let bus = bus.lock().unwrap();
-                bus.publish::<UserEvent>(&add_user).await.unwrap();
-                bus.publish::<UserEvent>(&rename_user).await.unwrap();
-            });
-        }).join().unwrap();
-    }
+    let first = {
+        let add_user = add_user.clone();
+        let rename_user = rename_user.clone();
+        tokio::spawn(async move {
+            let mut bus = Bus::new().await;
+            tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+            bus.publish::<UserEvent>(add_user).await.unwrap();
+            bus.publish::<UserEvent>(rename_user).await.unwrap();
+        })
+    };
 
-    std::thread::spawn(move || {
-        futures::executor::block_on(async {
-            let mut bus = bus.lock().unwrap();
-            let mut stream = bus.register::<UserEvent>().await.unwrap();
-            while let Some(event) = stream.next().await {
-                dbg!(event);
-            }
-        });
-    }).join().unwrap();
+    let second = tokio::spawn(async move {
+        let mut bus = Bus::new().await;
+        let mut stream = bus.register::<UserEvent>().await.unwrap();
+        if let Some(event) = stream.next().await {
+            assert_eq!(&add_user, &event);
+        }
+        if let Some(event) = stream.next().await {
+            assert_eq!(&rename_user, &event);
+        }
+    });
 
-    // let mut bus_str = bus.as_ref().borrow_mut();
-    // let mut stream = bus_str.register::<UserEvent>().await.unwrap();
-    // bus_str.publish(&add_user).await.unwrap();
-    // bus_str.publish(&rename_user).await.unwrap();
-    // let msg: EventInfo<UserEvent> = stream.next().await.unwrap();
-    // dbg!(msg);
+    try_join!(first, second).unwrap();
 }
 
 #[tokio::test]

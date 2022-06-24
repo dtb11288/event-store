@@ -41,29 +41,27 @@ impl Event for UserEvent {
     fn apply_to(self, state: Option<Self::State>) -> Self::State {
         match self {
             UserEvent::AddUser { name, email } => User {
-                email: email.clone(),
-                name: name.clone(),
+                email,
+                name,
             },
             UserEvent::RenameUser(new_name) => {
-                let mut user = state.unwrap().clone();
-                user.name = new_name.clone();
+                let mut user = state.unwrap();
+                user.name = new_name;
                 user
             }
         }
     }
 }
 
-#[test]
-fn event_store_save_events() {
+#[tokio::test]
+async fn event_store_save_events() {
     let mut store = TestStore { data: vec![] };
     let info = Info::new::<UserEvent>(UserType::guest());
     let user_added = EventInfo::new(info.clone(), UserEvent::AddUser { email: "test@gmail.com".to_string(), name: "Binh".to_string() });
     let info = info.increase(UserType::guest());
     let user_renamed = EventInfo::new(info.clone(), UserEvent::RenameUser("Biz8".to_owned()));
 
-    futures::executor::block_on(async {
-        store.save(&user_added).await.ok();
-        store.save(&user_renamed).await.ok();
-    });
+    store.save(&user_added).await.ok();
+    store.save(&user_renamed).await.ok();
     assert_eq!(store.data.len(), 2);
 }

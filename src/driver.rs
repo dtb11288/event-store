@@ -19,7 +19,7 @@ impl<Err, S: EventStore<Error = Err>, B: EventBus<Error = Err>> EventDriver<S, B
 
     pub async fn append<E: Event + Send + Sync>(&mut self, event: EventInfo<E>) -> Result<Id, Err> {
         let id = self.store.save(&event).await?;
-        self.bus.publish(&event).await?;
+        self.bus.publish(event).await?;
         Ok(id)
     }
 
