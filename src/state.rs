@@ -1,4 +1,4 @@
-use crate::command::Command;
+use crate::command::{Command, CommandHandler};
 use crate::event::{Event, EventInfo};
 use crate::info::{Info, UserType};
 use serde::Serialize;
@@ -78,8 +78,6 @@ impl<T: State> StateInfo<T> {
     }
 
     pub fn replay<E: Event<State = T>>(self, events: impl Iterator<Item=EventInfo<E>>) -> Self {
-        events.fold(self, |state, event| {
-            state.apply(event)
-        })
+        events.fold(self, Self::apply)
     }
 }
