@@ -51,7 +51,7 @@ impl<T: State> StateInfo<T> {
         self.0.is_some()
     }
 
-    pub async fn handle<E: Event<State = T>, Err, C>(self, handler: C, command: impl Command<C, Event=E, Error=Err>, user: UserType) -> Result<Vec<EventInfo<E>>, Err> {
+    pub async fn handle<E: Event<State = T>, Err, C>(self, handler: &mut C, command: impl Command<Context=C, Event=E, Error=Err>, user: UserType) -> Result<Vec<EventInfo<E>>, Err> {
         let (info, data) = self.take();
         command.handle_by(handler, data).await
             .map(|events| {

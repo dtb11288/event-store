@@ -42,11 +42,12 @@ impl Event for UserEvent {
 type UserCommand = UserEvent;
 
 #[async_trait::async_trait]
-impl Command<()> for UserCommand {
+impl Command for UserCommand {
+    type Context = ();
     type Event = UserEvent;
     type Error = ();
 
-    async fn handle_by(self, _handler: (), _state: Option<User>) -> Result<Vec<UserEvent>, ()> {
+    async fn handle_by(self, _handler: &mut (), _state: Option<User>) -> Result<Vec<UserEvent>, ()> {
         Ok(vec![self])
     }
 }
@@ -54,7 +55,7 @@ impl Command<()> for UserCommand {
 #[tokio::test]
 async fn generate_state_by_events() {
     let user_init = User::init();
-    let add_user = user_init.clone().handle((), UserCommand::AddUser {
+    let add_user = user_init.clone().handle(&mut (), UserCommand::AddUser {
         email: "demo@my.com".to_string(),
         name: "name1".to_string(),
     }, UserType::guest())
@@ -68,7 +69,7 @@ async fn generate_state_by_events() {
     assert_eq!(1, user.info().unwrap().version);
     assert_eq!("name1", user.data().unwrap().name);
 
-    let rename_user = user.clone().handle((), UserCommand::RenameUser { new_name: "name2".to_string() }, UserType::root())
+    let rename_user = user.clone().handle(&mut (), UserCommand::RenameUser { new_name: "name2".to_string() }, UserType::root())
         .await
         .unwrap()
         .first()
