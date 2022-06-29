@@ -1,4 +1,4 @@
-use crate::command::{Command, CommandHandler};
+use crate::command::Command;
 use crate::event::{Event, EventInfo};
 use crate::info::{Info, UserType};
 use serde::Serialize;
@@ -51,9 +51,9 @@ impl<T: State> StateInfo<T> {
         self.0.is_some()
     }
 
-    pub fn handle<E: Event<State = T>, Err>(self, command: impl Command<Event=E, Error=Err>, user: UserType) -> Result<Vec<EventInfo<E>>, Err> {
+    pub async fn handle<E: Event<State = T>, Err, C>(self, handler: C, command: impl Command<C, Event=E, Error=Err>, user: UserType) -> Result<Vec<EventInfo<E>>, Err> {
         let (info, data) = self.take();
-        command.handle_by(data)
+        command.handle_by(handler, data).await
             .map(|events| {
                 let (_, events) = events.into_iter()
                     .fold((info, vec![]), |(info, mut events), event| {

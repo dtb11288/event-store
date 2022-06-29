@@ -88,11 +88,12 @@ impl Event for UserEvent {
     }
 }
 
-impl Command for UserEvent {
+#[async_trait::async_trait]
+impl Command<()> for UserEvent {
     type Event = UserEvent;
     type Error = ();
 
-    fn handle_by(self, _state: Option<User>) -> Result<Vec<UserEvent>, ()> {
+    async fn handle_by(self, _handler: (), _state: Option<User>) -> Result<Vec<UserEvent>, ()> {
         Ok(vec![self])
     }
 }
@@ -100,10 +101,11 @@ impl Command for UserEvent {
 #[tokio::test]
 async fn test_bus() {
     let user_init = User::init();
-    let add_user = user_init.clone().handle(AddUser {
+    let add_user = user_init.clone().handle((), AddUser {
         email: "demo@my.com".to_string(),
         name: "name1".to_string(),
     }, UserType::guest())
+        .await
         .unwrap()
         .first()
         .unwrap()
@@ -111,7 +113,8 @@ async fn test_bus() {
 
     let user = user_init + add_user.clone();
 
-    let rename_user = user.clone().handle(RenameUser { new_name: "name2".to_string() }, UserType::root())
+    let rename_user = user.clone().handle((), RenameUser { new_name: "name2".to_string() }, UserType::root())
+        .await
         .unwrap()
         .first()
         .unwrap()

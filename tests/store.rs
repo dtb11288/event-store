@@ -1,4 +1,4 @@
-use event_store::{EventInfo, Id, UserType, Info};
+use event_store::{EventInfo, Id, UserType, Info, StateInfo};
 use event_store::prelude::*;
 use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
@@ -17,6 +17,10 @@ impl EventStore for TestStore {
         let id = event.info().id.clone();
         self.data.push(serde_json::to_string(event).unwrap());
         Ok(id)
+    }
+
+    async fn find_by_id<E: Event>(&self, _id: &Id) -> Result<StateInfo<<E as Event>::State>, Self::Error> {
+        todo!()
     }
 }
 

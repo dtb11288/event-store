@@ -1,7 +1,8 @@
 use crate::event::Event;
 
-pub trait Command {
+#[async_trait::async_trait]
+pub trait Command<C> {
     type Event: Event;
     type Error;
-    fn handle_by(self, state: Option<<<Self as Command>::Event as Event>::State>) -> Result<Vec<Self::Event>, Self::Error>;
+    async fn handle_by(self, handler: C, state: Option<<<Self as Command<C>>::Event as Event>::State>) -> Result<Vec<Self::Event>, Self::Error>;
 }
