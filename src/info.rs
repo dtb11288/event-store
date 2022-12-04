@@ -2,13 +2,13 @@ use crate::event::EventType;
 use serde::{Serialize, Deserialize};
 use chrono::{Utc, DateTime};
 use uuid::Uuid;
-use uuid::parser::ParseError;
 use core::fmt::{Display, Formatter, Error};
 use core::str::FromStr;
 use core::ops::Deref;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Id(Uuid);
+pub struct ParseIdError;
 
 impl Id {
     pub fn random() -> Self {
@@ -25,11 +25,12 @@ impl Deref for Id {
 }
 
 impl FromStr for Id {
-    type Err = ParseError;
+    type Err = ParseIdError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Uuid::from_str(s)
             .map(Self)
+            .map_err(|_| ParseIdError)
     }
 }
 
